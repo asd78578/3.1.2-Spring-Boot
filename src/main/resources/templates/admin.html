@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Users</title>
+</head>
+<body>
+
+<table>
+    <thead>
+    <th>Name</th>
+    <th>Surname</th>
+    <th>Age</th>
+    <th>Roles</th>
+    </thead>
+    <tbody>
+    <tr th:each="user : ${users}">
+        <td th:text="${user.getName()}"></td>
+        <td th:text="${user.getSurname()}"></td>
+        <td th:text="${user.getAge()}"></td>
+        <td th:text="${user.getRoles()}"></td>
+
+        <td><form th:method="GET" th:action="@{/admin/{id}/edit(id=${user.getId()})}" th:object="${user}">
+            <input type="submit" value="EDIT USER"/>
+        </form></td>
+
+        <td><form th:method="DELETE" th:action="@{/admin/{id}(id=${user.getId()})}" th:object="${user}">
+            <input type="submit" value="DELETE USER"/>
+        </form></td>
+
+        <td><form th:method="GET" th:action="@{/admin/{id}/page(id=${user.getId()})}" th:object="${user}">
+            <input type="submit" value="USER DETAILS"/>
+        </form></td>
+
+    </tr>
+    </tbody>
+</table>
+<br>
+<input type="button" value="Add User"
+       onclick="window.location.href = 'new'">
+<br>
+<a th:href="@{/logout}">Logout</a>
+<br>
+
+</body>
+</html>

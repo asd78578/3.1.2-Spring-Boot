@@ -21,9 +21,15 @@
             <td><b>Age:</b></td>
             <td th:text = "${user.getAge()}"></td>
         </tr>
+        <tr>
+            <td><b>Roles:</b></td>
+            <td th:text = "${user.getRoles()}"></td>
+        </tr>
     </table>
 </th:block>
 
+<br>
+<a th:href="@{/admin/}">Back to users list</a>
 <br>
 <a th:href="@{/logout}">Logout</a>
 <br>

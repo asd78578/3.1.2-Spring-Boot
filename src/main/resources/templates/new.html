@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en" xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>New User</title>
+</head>
+<body>
+<h2>Add New User </h2>
+<br>
+<form th:method = "POST" th:action = "@{/admin}" th:object = "${user}">
+    <label for="name">Name: </label>
+    <input type="text" th:field="*{name}" id="name"/>
+    <div style="color:red" th:if="${#fields.hasErrors('name')}" th:errors="*{name}">Name is not correct</div>
+    <br/>
+    <label for="name">Surname: </label>
+    <input type="text" th:field="*{surname}" id="surname"/>
+    <div style="color:red" th:if="${#fields.hasErrors('surname')}" th:errors="*{surname}">Surname is not correct</div>
+    <br/>
+    <label for="name">Age: </label>
+    <input type="text" th:field="*{age}" id="age"/>
+    <div style="color:red" th:if="${#fields.hasErrors('age')}" th:errors="*{age}">Age is not correct</div>
+    <br/>
+    <label for="name">Username: </label>
+    <input type="text" th:field="*{username}" id="username"/>
+    <br/>
+    <label for="name">Password: </label>
+    <input type="text" th:field="*{password}" id="password"/>
+    <br/>
+    <label>
+        <select multiple="multiple" th:field="*{roles}">
+            <option th:each="role: ${rolesOfUser}"
+                    th:value="${role.id}"
+                    th:text="${role.toString()}"></option>
+        </select>
+    </label>
+    <br/>
+    <input type="submit" value="Add New User"/>
+</form>
+
+
+</body>
+</html>
