@@ -108,7 +108,7 @@ public class User implements UserDetails {
                 ", age=" + age +
                 '}';
     }
-    //-------------------Spring Security's-----------------------//
+    //-----------------------Spring Security's-----------------------//
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
