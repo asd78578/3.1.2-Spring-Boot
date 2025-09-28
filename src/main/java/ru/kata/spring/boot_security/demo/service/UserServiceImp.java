@@ -1,27 +1,35 @@
 package ru.kata.spring.boot_security.demo.service;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import ru.kata.spring.boot_security.demo.model.Role;
 import ru.kata.spring.boot_security.demo.model.User;
+import ru.kata.spring.boot_security.demo.repository.RoleRepository;
 import ru.kata.spring.boot_security.demo.repository.UserRepository;
 
+import javax.annotation.PostConstruct;
 import javax.persistence.EntityManager;
 import javax.persistence.EntityNotFoundException;
 import javax.persistence.PersistenceContext;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 public class UserServiceImp implements UserService{
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final RoleRepository roleRepository;
 
-    public UserServiceImp(UserRepository userRepository, @Lazy PasswordEncoder passwordEncoder) {
+    public UserServiceImp(UserRepository userRepository, @Lazy PasswordEncoder passwordEncoder, RoleRepository roleRepository) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
+        this.roleRepository = roleRepository;
     }
 
     @Override
@@ -54,9 +62,58 @@ public class UserServiceImp implements UserService{
                 .orElseThrow(() -> new EntityNotFoundException("User not found with id: " + id));
     }
 
+//    @PostConstruct
+//    @Transactional
+//    public void addDefaultUsers() {
+//        if (userRepository.count() > 0) return;
+//
+//        Role userRole = roleRepository.findById(1)
+//                .orElseThrow(() -> new RuntimeException("ROLE_USER not found"));
+//        Role adminRole = roleRepository.findById(2)
+//                .orElseThrow(() -> new RuntimeException("ROLE_ADMIN not found"));
+//
+//        User user = new User();
+//        user.setName("Ron");
+//        user.setSurname("Uizli");
+//        user.setAge((byte) 55);
+//        user.setUsername("user@mail.com");
+//        user.setPassword(passwordEncoder.encode("12345"));
+//        user.setRoles(Set.of(userRole));
+//
+//        User admin = new User();
+//        admin.setName("Garri");
+//        admin.setSurname("Potter");
+//        admin.setAge((byte) 56);
+//        admin.setUsername("admin@mail.com");
+//        admin.setPassword(passwordEncoder.encode("admin"));
+//        admin.setRoles(Set.of(userRole, adminRole));
+//
+//        userRepository.save(user);
+//        userRepository.save(admin);
+//
+//        System.out.println(" Default users created.");
+//    }
+
+    @PostConstruct
+    public void testPasswords() {
+        System.out.println(passwordEncoder.matches("12345", "$2a$10$E1pKkn13HCrZKZCCmKp3K.9pE0DtaVJpsKVD.KINOrZVgmzVqvvf2")); // должно быть true
+        System.out.println(passwordEncoder.matches("admin", "$2a$10$vXQtSWeQSozIrCW1ysb3aeOtJdguakFxvzHjFZ1P1Tk0t3bYhvKq2")); // должно быть true
+    }
+
+    @PostConstruct
+    public void generatePasswords() {
+        System.out.println("user@mail.com -> " + passwordEncoder.encode("12345"));
+        System.out.println("admin@mail.com -> " + passwordEncoder.encode("admin"));
+    }
+
+
+    // Метод для добавления дефолтных пользователей при старте
     @Override
     @Transactional
     public void addUser(User user) {
+        if (userRepository.existsByUsername(user.getUsername())) {
+            throw new RuntimeException("User with username " + user.getUsername() + " already exists");
+        }
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         userRepository.save(user);
     }
@@ -70,29 +127,28 @@ public class UserServiceImp implements UserService{
     @Override
     @Transactional
     public void editUser(User user) {
-        // Получаем текущего пользователя из БД
+        // Загружаем существующего пользователя
         User existingUser = getUser(user.getId());
 
-        // Сохраняем старый зашифрованный пароль
-        String currentEncryptedPassword = existingUser.getPassword();
-
-        // Обновляем основные поля
+        // Обновляем данные
         existingUser.setName(user.getName());
         existingUser.setSurname(user.getSurname());
         existingUser.setAge(user.getAge());
         existingUser.setUsername(user.getUsername());
-        existingUser.setRoles(user.getRoles());
 
-        // Умная обработка пароля
+        // Обновляем роли корректно: загружаем из базы по ID
+        if (user.getRoles() != null && !user.getRoles().isEmpty()) {
+            Set<Role> rolesFromDb = user.getRoles().stream()
+                    .map(r -> roleRepository.findById(r.getId())
+                            .orElseThrow(() -> new RuntimeException("Role not found: " + r.getId())))
+                    .collect(Collectors.toSet());
+            existingUser.setRoles(rolesFromDb);
+        }
+
+        // Обновляем пароль, если он изменился
         String newPassword = user.getPassword();
-        if (shouldUpdatePassword(newPassword, currentEncryptedPassword)) {
-            // Пароль изменился - шифруем новый
+        if (shouldUpdatePassword(newPassword, existingUser.getPassword())) {
             existingUser.setPassword(passwordEncoder.encode(newPassword));
-            System.out.println("🔐 Пароль обновлен для пользователя: " + user.getUsername());
-        } else {
-            // Пароль не менялся - оставляем старый
-            existingUser.setPassword(currentEncryptedPassword);
-            System.out.println("⚡ Пароль не изменен для пользователя: " + user.getUsername());
         }
 
         userRepository.save(existingUser);
