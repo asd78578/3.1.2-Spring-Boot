@@ -1,51 +1,44 @@
 package ru.kata.spring.boot_security.demo.service;
 
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
-import org.springframework.security.core.GrantedAuthority;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import ru.kata.spring.boot_security.demo.models.Role;
-import ru.kata.spring.boot_security.demo.models.User;
+import ru.kata.spring.boot_security.demo.model.User;
 import ru.kata.spring.boot_security.demo.repository.UserRepository;
 
-import java.util.Collection;
+import javax.persistence.EntityManager;
+import javax.persistence.EntityNotFoundException;
+import javax.persistence.PersistenceContext;
 import java.util.List;
-import java.util.stream.Collectors;
-
 
 @Service
 public class UserServiceImp implements UserService{
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
 
-    @Autowired
     public UserServiceImp(UserRepository userRepository, @Lazy PasswordEncoder passwordEncoder) {
         this.userRepository = userRepository;
         this.passwordEncoder = passwordEncoder;
     }
 
     @Override
+    @Transactional(readOnly = true)
     public User findByUsername(String username) {
-        return userRepository.findByUsername(username);
+        User user = userRepository.findByUsername(username); // Используем репозиторий, а не этот же метод
+        if (user == null) {
+            throw new UsernameNotFoundException("User not found: " + username);
+        }
+        return user;
     }
+
 
     @Override
-    @Transactional
+    @Transactional(readOnly = true)
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        User user = userRepository.findByUsername(username);
-        if(user == null) {
-            throw new UsernameNotFoundException(String.format("User '%s' not found", username));
-        }
-        return new User(user.getName(),user.getUsername(),user.getAge());
-    }
-
-    private Collection<? extends GrantedAuthority> mapRolesToAuthorities(Collection<Role> roles) {
-        return roles.stream().map(r-> new SimpleGrantedAuthority(r.getAuthority())).collect(Collectors.toList());
+        return findByUsername(username);
     }
 
     @Override
@@ -57,7 +50,8 @@ public class UserServiceImp implements UserService{
     @Override
     @Transactional(readOnly = true)
     public User getUser(Integer id) {
-        return userRepository.getById(id);
+        return userRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("User not found with id: " + id));
     }
 
     @Override
@@ -76,9 +70,60 @@ public class UserServiceImp implements UserService{
     @Override
     @Transactional
     public void editUser(User user) {
-        user.setPassword(passwordEncoder.encode(user.getPassword()));
-        userRepository.save(user);
+        // Получаем текущего пользователя из БД
+        User existingUser = getUser(user.getId());
+
+        // Сохраняем старый зашифрованный пароль
+        String currentEncryptedPassword = existingUser.getPassword();
+
+        // Обновляем основные поля
+        existingUser.setName(user.getName());
+        existingUser.setSurname(user.getSurname());
+        existingUser.setAge(user.getAge());
+        existingUser.setUsername(user.getUsername());
+        existingUser.setRoles(user.getRoles());
+
+        // Умная обработка пароля
+        String newPassword = user.getPassword();
+        if (shouldUpdatePassword(newPassword, currentEncryptedPassword)) {
+            // Пароль изменился - шифруем новый
+            existingUser.setPassword(passwordEncoder.encode(newPassword));
+            System.out.println("🔐 Пароль обновлен для пользователя: " + user.getUsername());
+        } else {
+            // Пароль не менялся - оставляем старый
+            existingUser.setPassword(currentEncryptedPassword);
+            System.out.println("⚡ Пароль не изменен для пользователя: " + user.getUsername());
+        }
+
+        userRepository.save(existingUser);
     }
 
+    // Проверяем, нужно ли обновлять пароль
 
+    private boolean shouldUpdatePassword(String newPassword, String currentEncryptedPassword) {
+        // 1. Если пароль null или пустой - не обновляем
+        if (newPassword == null || newPassword.trim().isEmpty()) {
+            return false;
+        }
+
+        // 2. Если пароль уже зашифрован (скорее всего, это старый пароль из формы) - не обновляем
+        if (isPasswordEncrypted(newPassword)) {
+            return false;
+        }
+
+        // 3. Если новый пароль совпадает с текущим (после проверки) - не обновляем
+        if (passwordEncoder.matches(newPassword, currentEncryptedPassword)) {
+            return false;
+        }
+
+        // 4. Во всех остальных случаях - пароль изменился, нужно обновить
+        return true;
+    }
+
+    // Проверяем, является ли пароль уже зашифрованным
+
+    private boolean isPasswordEncrypted(String password) {
+        return password.startsWith("$2a$") || password.startsWith("$2b$");
+    }
 }
+
