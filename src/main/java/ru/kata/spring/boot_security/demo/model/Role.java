@@ -51,9 +51,6 @@ public class Role implements GrantedAuthority {
         this.users = users;
     }
 
-
-    // необходимо реализовать метод getAuthority()
-
     @Override
     public String getAuthority() {
         return getRoleType();

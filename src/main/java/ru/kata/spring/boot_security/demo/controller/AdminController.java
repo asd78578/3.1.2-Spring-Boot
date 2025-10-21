@@ -6,8 +6,7 @@ import org.springframework.ui.Model;
 import org.springframework.validation.BindingResult;
 import org.springframework.web.bind.annotation.*;
 import ru.kata.spring.boot_security.demo.model.User;
-import ru.kata.spring.boot_security.demo.repository.RoleRepository;
-import ru.kata.spring.boot_security.demo.service.RoleServic;
+import ru.kata.spring.boot_security.demo.service.RoleService;
 import ru.kata.spring.boot_security.demo.service.UserService;
 
 import javax.validation.Valid;
@@ -17,10 +16,10 @@ import javax.validation.Valid;
 public class AdminController {
 
     private final UserService userService;
-    private final RoleServic roleService;
+    private final RoleService roleService;
 
     @Autowired
-    public AdminController(UserService userService, RoleServic roleService) {
+    public AdminController(UserService userService, RoleService roleService) {
         this.userService = userService;
         this.roleService = roleService;
     }
@@ -65,9 +64,9 @@ public class AdminController {
         return "edit";
     }
 
-    @PatchMapping("/{id}")
-    public String updateUser(@PathVariable("id") Integer id,
-                             @ModelAttribute("user") @Valid User user,
+    @PutMapping("/{id}")
+    public String updateUser(@ModelAttribute("user")
+                                 @Valid User user,
                              BindingResult bindingResult,
                              Model model) {
         if (bindingResult.hasErrors()) {
@@ -75,8 +74,6 @@ public class AdminController {
             return "edit";
         }
 
-        // Устанавливаем ID для обеспечения обновления существующей записи
-        user.setId(id);
         userService.editUser(user);
         return "redirect:/admin";
     }

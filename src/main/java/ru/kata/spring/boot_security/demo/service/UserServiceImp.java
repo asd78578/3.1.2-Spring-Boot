@@ -35,7 +35,7 @@ public class UserServiceImp implements UserService{
     @Override
     @Transactional(readOnly = true)
     public User findByUsername(String username) {
-        User user = userRepository.findByUsername(username); // Используем репозиторий, а не этот же метод
+        User user = userRepository.findByUsername(username);
         if (user == null) {
             throw new UsernameNotFoundException("User not found: " + username);
         }
@@ -62,52 +62,45 @@ public class UserServiceImp implements UserService{
                 .orElseThrow(() -> new EntityNotFoundException("User not found with id: " + id));
     }
 
-//    @PostConstruct
-//    @Transactional
-//    public void addDefaultUsers() {
-//        if (userRepository.count() > 0) return;
-//
-//        Role userRole = roleRepository.findById(1)
-//                .orElseThrow(() -> new RuntimeException("ROLE_USER not found"));
-//        Role adminRole = roleRepository.findById(2)
-//                .orElseThrow(() -> new RuntimeException("ROLE_ADMIN not found"));
-//
-//        User user = new User();
-//        user.setName("Ron");
-//        user.setSurname("Uizli");
-//        user.setAge((byte) 55);
-//        user.setUsername("user@mail.com");
-//        user.setPassword(passwordEncoder.encode("12345"));
-//        user.setRoles(Set.of(userRole));
-//
-//        User admin = new User();
-//        admin.setName("Garri");
-//        admin.setSurname("Potter");
-//        admin.setAge((byte) 56);
-//        admin.setUsername("admin@mail.com");
-//        admin.setPassword(passwordEncoder.encode("admin"));
-//        admin.setRoles(Set.of(userRole, adminRole));
-//
-//        userRepository.save(user);
-//        userRepository.save(admin);
-//
-//        System.out.println(" Default users created.");
-//    }
 
     @PostConstruct
-    public void testPasswords() {
-        System.out.println(passwordEncoder.matches("12345", "$2a$10$E1pKkn13HCrZKZCCmKp3K.9pE0DtaVJpsKVD.KINOrZVgmzVqvvf2")); // должно быть true
-        System.out.println(passwordEncoder.matches("admin", "$2a$10$vXQtSWeQSozIrCW1ysb3aeOtJdguakFxvzHjFZ1P1Tk0t3bYhvKq2")); // должно быть true
+    @Transactional
+    public void init() {
+        initRoles();
+        initUsers();
     }
 
-    @PostConstruct
-    public void generatePasswords() {
-        System.out.println("user@mail.com -> " + passwordEncoder.encode("12345"));
-        System.out.println("admin@mail.com -> " + passwordEncoder.encode("admin"));
+    private void initRoles() {
+        if (roleRepository.count() == 0) {
+            Role adminRole = new Role("ROLE_ADMIN");
+            Role userRole = new Role("ROLE_USER");
+            roleRepository.save(adminRole);
+            roleRepository.save(userRole);
+        }
     }
 
+    private void initUsers() {
+        if (userRepository.count() == 0) {
+            Role adminRole = roleRepository.findByRoleType("ROLE_ADMIN")
+                    .orElseThrow(() -> new RuntimeException("ROLE_ADMIN not found"));
+            Role userRole = roleRepository.findByRoleType("ROLE_USER")
+                    .orElseThrow(() -> new RuntimeException("ROLE_USER not found"));
 
-    // Метод для добавления дефолтных пользователей при старте
+            User admin = new User("admin", "Admin", (byte) 35);
+            admin.setUsername("admin");
+            admin.setPassword(passwordEncoder.encode("admin"));
+            admin.setRoles(Set.of(adminRole, userRole));
+            userRepository.save(admin);
+
+            User user = new User("user", "User", (byte) 28);
+            user.setUsername("user");
+            user.setPassword(passwordEncoder.encode("12345"));
+            user.setRoles(Set.of(userRole));
+            userRepository.save(user);
+
+        }
+    }
+
     @Override
     @Transactional
     public void addUser(User user) {
@@ -127,16 +120,13 @@ public class UserServiceImp implements UserService{
     @Override
     @Transactional
     public void editUser(User user) {
-        // Загружаем существующего пользователя
         User existingUser = getUser(user.getId());
 
-        // Обновляем данные
         existingUser.setName(user.getName());
         existingUser.setSurname(user.getSurname());
         existingUser.setAge(user.getAge());
         existingUser.setUsername(user.getUsername());
 
-        // Обновляем роли корректно: загружаем из базы по ID
         if (user.getRoles() != null && !user.getRoles().isEmpty()) {
             Set<Role> rolesFromDb = user.getRoles().stream()
                     .map(r -> roleRepository.findById(r.getId())
@@ -145,7 +135,6 @@ public class UserServiceImp implements UserService{
             existingUser.setRoles(rolesFromDb);
         }
 
-        // Обновляем пароль, если он изменился
         String newPassword = user.getPassword();
         if (shouldUpdatePassword(newPassword, existingUser.getPassword())) {
             existingUser.setPassword(passwordEncoder.encode(newPassword));
@@ -154,32 +143,25 @@ public class UserServiceImp implements UserService{
         userRepository.save(existingUser);
     }
 
-    // Проверяем, нужно ли обновлять пароль
-
     private boolean shouldUpdatePassword(String newPassword, String currentEncryptedPassword) {
-        // 1. Если пароль null или пустой - не обновляем
         if (newPassword == null || newPassword.trim().isEmpty()) {
             return false;
         }
 
-        // 2. Если пароль уже зашифрован (скорее всего, это старый пароль из формы) - не обновляем
         if (isPasswordEncrypted(newPassword)) {
             return false;
         }
 
-        // 3. Если новый пароль совпадает с текущим (после проверки) - не обновляем
         if (passwordEncoder.matches(newPassword, currentEncryptedPassword)) {
             return false;
         }
 
-        // 4. Во всех остальных случаях - пароль изменился, нужно обновить
         return true;
     }
 
-    // Проверяем, является ли пароль уже зашифрованным
-
     private boolean isPasswordEncrypted(String password) {
         return password.startsWith("$2a$") || password.startsWith("$2b$");
+
     }
 }
 
